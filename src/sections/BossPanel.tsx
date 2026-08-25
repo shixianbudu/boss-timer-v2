@@ -69,7 +69,7 @@ export default function BossPanel({ boss, records, now, onKill, onClear, onClear
           <button
             type="button"
             onClick={() => {
-              if (window.confirm(`确定清除「${boss.name}」全部 ${boss.lines} 条线的记录吗？`)) {
+              if (window.confirm(`确定清除「${boss.name}」全部 ${boss.lines} 条线的记录吗？\n⚠️ 联机同步版：这将同步清除本区服所有人的记录！`)) {
                 onClearBoss(boss.id)
               }
             }}

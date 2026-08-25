@@ -7,16 +7,16 @@ import {
   type SyncStatus,
 } from '@/lib/sync'
 
-const STORAGE_KEY = 'boss-timer-doc-v2'
+const storageKey = (serverId: string) => `boss-timer-doc-v2:${serverId}`
 
 /** key: `${bossId}:${line}` -> 击杀时间戳(ms) */
 export type KillRecords = Record<string, number>
 
 export const recordKey = (bossId: string, line: number) => `${bossId}:${line}`
 
-function loadDoc(): SyncDoc {
+function loadDoc(serverId: string): SyncDoc {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(storageKey(serverId))
     if (!raw) return { r: {}, d: {} }
     const parsed = JSON.parse(raw) as SyncDoc
     if (parsed && typeof parsed.r === 'object' && typeof parsed.d === 'object') return parsed
@@ -26,30 +26,30 @@ function loadDoc(): SyncDoc {
   }
 }
 
-function saveDoc(doc: SyncDoc) {
+function saveDoc(serverId: string, doc: SyncDoc) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(doc))
+    localStorage.setItem(storageKey(serverId), JSON.stringify(doc))
   } catch {
     // 存储失败时静默忽略
   }
 }
 
-/** 联机同步版记录 hook：本地即时响应 + MQTT 多人同步 */
-export function useKillRecords() {
-  const [records, setRecords] = useState<KillRecords>(() => visibleRecords(loadDoc()))
+/** 联机同步版记录 hook：本地即时响应 + MQTT 多人同步（按区服隔离） */
+export function useKillRecords(serverId: string) {
+  const [records, setRecords] = useState<KillRecords>(() => visibleRecords(loadDoc(serverId)))
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('connecting')
   const clientRef = useRef<SyncClient | null>(null)
 
   useEffect(() => {
-    const client = createSyncClient(loadDoc())
+    const client = createSyncClient(loadDoc(serverId), serverId)
     clientRef.current = client
     client.onUpdate((doc) => {
-      saveDoc(doc)
+      saveDoc(serverId, doc)
       setRecords(visibleRecords(doc))
     })
     client.onStatus(setSyncStatus)
     return () => client.close()
-  }, [])
+  }, [serverId])
 
   const recordKill = useCallback((bossId: string, line: number) => {
     clientRef.current?.change((doc) => {

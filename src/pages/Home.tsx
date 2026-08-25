@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, Navigate, useParams } from 'react-router'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { BOSSES, formatCountdown, respawnMs } from '@/lib/bosses'
+import { getServer, type ServerConfig } from '@/lib/servers'
 import { recordKey, useKillRecords } from '@/hooks/useKillRecords'
 import { useNow } from '@/hooks/useNow'
 import BossPanel from '@/sections/BossPanel'
@@ -38,8 +40,15 @@ interface UpcomingItem {
 }
 
 export default function Home() {
+  const { serverId } = useParams()
+  const server = getServer(serverId)
+  if (!server) return <Navigate to="/" replace />
+  return <BossTimer server={server} />
+}
+
+function BossTimer({ server }: { server: ServerConfig }) {
   const now = useNow()
-  const { records, recordKill, clearRecord, clearBoss, clearAll, syncStatus } = useKillRecords()
+  const { records, recordKill, clearRecord, clearBoss, clearAll, syncStatus } = useKillRecords(server.id)
   const [soundOn, setSoundOn] = useState(true)
   const alertedRef = useRef<Set<string>>(new Set())
 
@@ -96,12 +105,21 @@ export default function Home() {
           </span>
         </div>
         <header className="mb-4 flex flex-wrap items-center gap-3">
+          <Link
+            to="/"
+            className="rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-sm text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white"
+          >
+            ← 换区服
+          </Link>
           <h1 className="text-2xl font-bold tracking-wide">
             <span className="mr-2">⚔️</span>Boss 刷新倒计时
             <span className="ml-2 rounded-md bg-amber-500/20 px-2 py-0.5 align-middle text-sm font-bold text-amber-300">
               2.0 联机同步版
             </span>
           </h1>
+          <span className="rounded-full border border-sky-500/50 bg-sky-500/10 px-3 py-1 text-sm font-semibold text-sky-300">
+            {server.icon} {server.name}
+          </span>
           <span
             className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${
               syncStatus === 'online'
@@ -139,7 +157,7 @@ export default function Home() {
             <button
               type="button"
               onClick={() => {
-                if (window.confirm('确定清除所有 Boss 的全部记录吗？')) clearAll()
+                if (window.confirm('确定清除所有 Boss 的全部记录吗？\n⚠️ 联机同步版：这将同步清除本区服所有人的记录！')) clearAll()
               }}
               className="rounded-md border border-red-900 bg-red-950/50 px-3 py-1.5 text-sm text-red-300 hover:bg-red-900/50"
             >

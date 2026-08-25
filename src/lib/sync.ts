@@ -8,7 +8,8 @@
 import mqtt, { type MqttClient } from 'mqtt'
 
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt'
-const TOPIC = 'bosstimer/sync-x7k2q9/state'
+/** 每个区服一个独立主题，互相同步互不影响 */
+const topicFor = (serverId: string) => `bosstimer/sync-x7k2q9/${serverId}`
 
 export interface SyncDoc {
   /** key -> 击杀时间戳 */
@@ -56,7 +57,8 @@ export interface SyncClient {
   close: () => void
 }
 
-export function createSyncClient(initialDoc: SyncDoc): SyncClient {
+export function createSyncClient(initialDoc: SyncDoc, serverId: string): SyncClient {
+  const TOPIC = topicFor(serverId)
   let doc = initialDoc
   let updateCb: (doc: SyncDoc) => void = () => {}
   let statusCb: (s: SyncStatus) => void = () => {}

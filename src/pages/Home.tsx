@@ -5,8 +5,14 @@ import { BOSSES, formatCountdown, respawnMs } from '@/lib/bosses'
 import { getServer, type ServerConfig } from '@/lib/servers'
 import { recordKey, useKillRecords } from '@/hooks/useKillRecords'
 import { useNow } from '@/hooks/useNow'
+import { onIdentityNeeded } from '@/lib/sync'
+import { getNickname } from '@/lib/identity'
+import { getAdminKey } from '@/lib/api'
 import BossPanel from '@/sections/BossPanel'
 import OverviewPanel from '@/sections/OverviewPanel'
+import ActivityPanel from '@/sections/ActivityPanel'
+import IdentityDialog from '@/sections/IdentityDialog'
+import AdminDialog from '@/sections/AdminDialog'
 import '../App.css'
 
 /** 简易提示音（WebAudio，无需音频文件） */
@@ -51,6 +57,15 @@ function BossTimer({ server }: { server: ServerConfig }) {
   const { records, recordKill, clearRecord, clearBoss, clearAll, syncStatus } = useKillRecords(server.id)
   const [soundOn, setSoundOn] = useState(true)
   const alertedRef = useRef<Set<string>>(new Set())
+  const [tab, setTab] = useState('overview')
+  // 首次使用未设置昵称时，直接弹出设置对话框
+  const [identityOpen, setIdentityOpen] = useState(() => !getNickname())
+  const [adminOpen, setAdminOpen] = useState(false)
+  // 用于昵称变更后刷新头部显示
+  const [nickname, setNickname] = useState(getNickname)
+
+  // 操作时发现未设置昵称也会唤起对话框
+  useEffect(() => onIdentityNeeded(() => setIdentityOpen(true)), [])
 
   const bossMap = useMemo(() => new Map(BOSSES.map((b) => [b.id, b])), [])
 
@@ -114,12 +129,22 @@ function BossTimer({ server }: { server: ServerConfig }) {
           <h1 className="text-2xl font-bold tracking-wide">
             <span className="mr-2">⚔️</span>Boss 刷新倒计时
             <span className="ml-2 rounded-md bg-amber-500/20 px-2 py-0.5 align-middle text-sm font-bold text-amber-300">
-              2.0 联机同步版
+              3.0 安全版
             </span>
           </h1>
           <span className="rounded-full border border-sky-500/50 bg-sky-500/10 px-3 py-1 text-sm font-semibold text-sky-300">
             {server.icon} {server.name}
           </span>
+          {nickname && (
+            <button
+              type="button"
+              onClick={() => setIdentityOpen(true)}
+              className="rounded-full border border-neutral-700 bg-neutral-800 px-3 py-1 text-sm text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white"
+              title="点击修改昵称"
+            >
+              👤 {nickname}
+            </button>
+          )}
           <span
             className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${
               syncStatus === 'online'
@@ -156,13 +181,27 @@ function BossTimer({ server }: { server: ServerConfig }) {
             </button>
             <button
               type="button"
-              onClick={() => {
-                if (window.confirm('确定清除所有 Boss 的全部记录吗？\n⚠️ 联机同步版：这将同步清除本区服所有人的记录！')) clearAll()
-              }}
-              className="rounded-md border border-red-900 bg-red-950/50 px-3 py-1.5 text-sm text-red-300 hover:bg-red-900/50"
+              onClick={() => setAdminOpen(true)}
+              className={`rounded-md border px-3 py-1.5 text-sm transition-colors ${
+                getAdminKey()
+                  ? 'border-amber-600 bg-amber-500/15 text-amber-300'
+                  : 'border-neutral-700 bg-neutral-800 text-neutral-400 hover:border-neutral-500'
+              }`}
+              title="管理员模式：封禁 / 撤销 / 全部清空"
             >
-              全部清空
+              ⚙️ 管理
             </button>
+            {getAdminKey() && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm('确定清除所有 Boss 的全部记录吗？\n⚠️ 联机同步版：这将同步清除本区服所有人的记录！')) clearAll()
+                }}
+                className="rounded-md border border-red-900 bg-red-950/50 px-3 py-1.5 text-sm text-red-300 hover:bg-red-900/50"
+              >
+                全部清空
+              </button>
+            )}
           </div>
         </header>
 
@@ -185,8 +224,14 @@ function BossTimer({ server }: { server: ServerConfig }) {
           </div>
         )}
 
-        <Tabs defaultValue="overview">
+        <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="mb-4 flex h-auto flex-wrap justify-start gap-1 bg-neutral-900 p-1">
+            <TabsTrigger
+              value="activity"
+              className="font-semibold text-white data-[state=active]:bg-sky-700/60 data-[state=active]:text-white"
+            >
+              <span className="mr-1">🛡️</span>操作动态
+            </TabsTrigger>
             <TabsTrigger
               value="overview"
               className="font-semibold text-white data-[state=active]:bg-amber-600/60 data-[state=active]:text-white"
@@ -225,6 +270,10 @@ function BossTimer({ server }: { server: ServerConfig }) {
             <OverviewPanel records={records} now={now} onKill={recordKill} onClear={clearRecord} />
           </TabsContent>
 
+          <TabsContent value="activity">
+            <ActivityPanel serverId={server.id} active={tab === 'activity'} />
+          </TabsContent>
+
           {BOSSES.map((boss) => (
             <TabsContent key={boss.id} value={boss.id}>
               <BossPanel
@@ -240,8 +289,17 @@ function BossTimer({ server }: { server: ServerConfig }) {
         </Tabs>
 
         <footer className="mt-6 text-center text-xs text-neutral-600">
-          点击卡片记录击杀时间并开始倒计时 · 再次点击重新计时 · 点 × 清除单条 · 2.0 联机同步：所有人的记录实时共享，本地自动备份
+          点击卡片记录击杀时间并开始倒计时 · 再次点击重新计时 · 点 × 清除单条 · 3.0 安全版：操作需署名，服务端校验，乱来会被自动检测并封禁
         </footer>
+
+        <IdentityDialog
+          open={identityOpen}
+          onClose={() => {
+            setIdentityOpen(false)
+            setNickname(getNickname())
+          }}
+        />
+        <AdminDialog open={adminOpen} onClose={() => setAdminOpen(false)} />
       </div>
     </div>
   )

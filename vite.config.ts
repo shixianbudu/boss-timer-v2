@@ -13,8 +13,6 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      // 浏览器环境使用 mqtt 的 ESM 预构建版本，避免 Node polyfill 问题
-      mqtt: path.resolve(__dirname, "node_modules/mqtt/dist/mqtt.esm.js"),
     },
   },
 });

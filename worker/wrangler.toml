@@ -1,1 +1,13 @@
-placeholder-will-be-replaced
+# Worker 名称（部署后地址为 https://boss-timer-api.<你的子域>.workers.dev）
+name = "boss-timer-api"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+# KV 命名空间：先用下面的命令创建，再把返回的 id 填到这里
+#   npx wrangler kv namespace create BOSS_TIMER_KV
+[[kv_namespaces]]
+binding = "KV"
+id = "在这里填入-kv-namespace-create-返回的-id"
+
+# 管理员密钥不要写在这个文件里，用命令设置：
+#   npx wrangler secret put ADMIN_KEY

@@ -34,7 +34,7 @@ function saveDoc(serverId: string, doc: SyncDoc) {
   }
 }
 
-/** 联机同步版记录 hook：本地即时响应 + MQTT 多人同步（按区服隔离） */
+/** 联机同步版记录 hook：本地即时响应 + Worker 后端校验同步（按区服隔离） */
 export function useKillRecords(serverId: string) {
   const [records, setRecords] = useState<KillRecords>(() => visibleRecords(loadDoc(serverId)))
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('connecting')
@@ -52,40 +52,19 @@ export function useKillRecords(serverId: string) {
   }, [serverId])
 
   const recordKill = useCallback((bossId: string, line: number) => {
-    clientRef.current?.change((doc) => {
-      doc.r[recordKey(bossId, line)] = Date.now()
-      delete doc.d[recordKey(bossId, line)]
-    })
+    clientRef.current?.kill(bossId, line)
   }, [])
 
   const clearRecord = useCallback((bossId: string, line: number) => {
-    clientRef.current?.change((doc) => {
-      const key = recordKey(bossId, line)
-      delete doc.r[key]
-      doc.d[key] = Date.now()
-    })
+    clientRef.current?.clear(bossId, line)
   }, [])
 
   const clearBoss = useCallback((bossId: string) => {
-    clientRef.current?.change((doc) => {
-      const now = Date.now()
-      for (const key of Object.keys(doc.r)) {
-        if (key.startsWith(`${bossId}:`)) {
-          delete doc.r[key]
-          doc.d[key] = now
-        }
-      }
-    })
+    clientRef.current?.clearBoss(bossId)
   }, [])
 
   const clearAll = useCallback(() => {
-    clientRef.current?.change((doc) => {
-      const now = Date.now()
-      for (const key of Object.keys(doc.r)) {
-        delete doc.r[key]
-        doc.d[key] = now
-      }
-    })
+    clientRef.current?.clearAll()
   }, [])
 
   return { records, recordKill, clearRecord, clearBoss, clearAll, syncStatus }

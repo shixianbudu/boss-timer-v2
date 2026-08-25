@@ -6,8 +6,8 @@
  *  3. 下方 DEFAULT_API_BASE —— 部署 Worker 后把它改成你的 Worker 地址
  */
 
-// TODO: 部署 Worker 后改成你的地址，例如 'https://boss-timer-api.abc123.workers.dev'
-const DEFAULT_API_BASE = 'https://boss-timer-api.YOUR-SUBDOMAIN.workers.dev'
+// 部署 Worker 后的实际地址
+const DEFAULT_API_BASE = 'https://boss-timer-api.douyinfenda.workers.dev'
 
 export const API_BASE: string =
   (typeof localStorage !== 'undefined' && localStorage.getItem('bt-api-base')) ||

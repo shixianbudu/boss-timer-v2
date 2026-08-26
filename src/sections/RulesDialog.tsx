@@ -16,7 +16,7 @@ import {
 import { Button } from '@/components/ui/button'
 
 /** 规则版本号：改文案时 +1（v1 -> v2），用户需重新确认 */
-const RULES_VERSION = 'v1'
+const RULES_VERSION = 'v2'
 const STORAGE_KEY = 'bt-rules-agreed'
 
 const listeners = new Set<() => void>()
@@ -93,6 +93,9 @@ export default function RulesDialog() {
               </li>
               <li>
                 <strong className="text-red-400">1 小时内异常操作累计 10 次，系统将自动封禁该设备 24 小时</strong>，封禁期间无法提交任何操作。
+              </li>
+              <li>
+                触发自动封禁的同时，<strong className="text-red-400">系统会自动还原该设备最近 1 小时内的异常操作</strong>，被破坏的计时会自动恢复。
               </li>
               <li>
                 情节严重或多次自动封禁的，管理员将<strong className="text-red-400">永久封禁该设备</strong>，不予解除。

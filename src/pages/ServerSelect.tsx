@@ -51,12 +51,9 @@ export default function ServerSelect() {
       <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-center px-4 py-8">
         <h1 className="mb-2 text-center text-3xl font-bold tracking-wide sm:text-4xl">
           <span className="mr-2">⚔️</span>Boss 刷新倒计时
-          <span className="ml-3 rounded-md bg-amber-500/20 px-2.5 py-1 align-middle text-base font-bold text-amber-300">
-            2.0 联机同步版
-          </span>
         </h1>
         <p className="mb-8 text-center text-sm text-neutral-400">
-          选择你的区服，进入后开始记录 · 同一区服的玩家实时共享击杀记录
+          选择你的区服，同一区服的玩家实时共享击杀记录
         </p>
 
         <div className="grid w-full grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
@@ -73,10 +70,6 @@ export default function ServerSelect() {
           ))}
         </div>
       </div>
-
-      <footer className="pb-6 text-center text-xs text-neutral-600">
-        每个区服 8 个 Boss × 60 条线 · 点击卡片记录击杀 · 倒计时由绿变红提醒刷新
-      </footer>
     </div>
   )
 }

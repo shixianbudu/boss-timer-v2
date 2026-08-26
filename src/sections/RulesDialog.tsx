@@ -15,8 +15,8 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 
-/** 规则版本号：改文案时 +1（v1 -> v2），用户需重新确认 */
-const RULES_VERSION = 'v2'
+/** 规则版本号：改文案时 +1（v2 -> v3），用户需重新确认 */
+const RULES_VERSION = 'v3'
 const STORAGE_KEY = 'bt-rules-agreed'
 
 const listeners = new Set<() => void>()
@@ -89,13 +89,13 @@ export default function RulesDialog() {
             <h3 className="mb-1 font-bold text-red-300">三、处罚机制（机器自动执行）</h3>
             <ol className="list-decimal space-y-0.5 pl-5">
               <li>
-                系统会自动检测异常操作：<strong>未到刷新时间的击杀上报、操作频率过高的行为会被直接拒绝并记录</strong>。
+                系统会自动检测异常操作：<strong>未到刷新时间的击杀上报会被拒绝并记录；同一设备 1 分钟内操作超过 3 次视为操作频率过高，同样被拒绝并记录</strong>。
               </li>
               <li>
                 <strong className="text-red-400">1 小时内异常操作累计 10 次，系统将自动封禁该设备 24 小时</strong>，封禁期间无法提交任何操作。
               </li>
               <li>
-                触发自动封禁的同时，<strong className="text-red-400">系统会自动还原该设备最近 1 小时内的异常操作</strong>，被破坏的计时会自动恢复。
+                封禁（含管理员手动封禁）的同时，<strong className="text-red-400">系统会自动还原该设备在本区服的全部操作记录</strong>，被破坏的计时会自动恢复，其他玩家的正常记录不受影响。
               </li>
               <li>
                 情节严重或多次自动封禁的，管理员将<strong className="text-red-400">永久封禁该设备</strong>，不予解除。

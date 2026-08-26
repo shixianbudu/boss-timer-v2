@@ -67,14 +67,20 @@ export default function ActivityPanel({ serverId, active }: { serverId: string; 
 
   const ban = async (entry: LogEntry) => {
     const reason = window.prompt(`封禁「${entry.user.name}」的原因：`, '恶意乱点') ?? ''
-    if (!window.confirm(`确定封禁「${entry.user.name}」吗？\n封禁后该设备将无法再提交任何操作。`)) return
+    if (
+      !window.confirm(
+        `确定封禁「${entry.user.name}」吗？\n封禁后该设备将无法再提交任何操作，其在本区服的全部操作记录将被还原（其他玩家的记录不受影响）。`,
+      )
+    )
+      return
     try {
       await apiFetch('/api/admin/ban', {
         method: 'POST',
-        body: { fp: entry.user.fp, uid: entry.user.id, name: entry.user.name, reason },
+        body: { fp: entry.user.fp, uid: entry.user.id, name: entry.user.name, reason, server: serverId },
         admin: true,
       })
-      toast.success(`已封禁 ${entry.user.name}`)
+      toast.success(`已封禁 ${entry.user.name}，其操作记录已还原`)
+      void load()
     } catch {
       toast.error('封禁失败：密钥无效或网络异常')
     }

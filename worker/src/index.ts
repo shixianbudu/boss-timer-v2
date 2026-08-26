@@ -3,7 +3,7 @@
  *
  * 职责：
  *  - 唯一权威数据源：击杀记录只由本 Worker 写入，时间戳以服务器时钟为准
- *  - 合理性校验：Boss 未到刷新周期时拒绝重复击杀上报
+ *  - 合理性校验：Boss 未到刷新周期时的重复击杀上报需用户确认（force）
  *  - 频率限制：同一身份单位时间内操作数有限
  *  - 违规检测：被拒绝的异常操作累计到一定次数自动封禁 24 小时
  *  - 操作日志：所有操作（含被拒绝的）公开可查，人人可见即威慑
@@ -198,6 +198,8 @@ interface OpBody {
   op: 'kill' | 'clear' | 'clearBoss' | 'clearAll'
   bossId?: string
   line?: number
+  /** 前端弹确认框后用户明确选择"强制重置"时为 true：放行但记一次违规 */
+  force?: boolean
   user: Identity
 }
 
@@ -270,16 +272,23 @@ async function handleOp(req: Request, env: Env): Promise<Response> {
     const key = recordKey(body.bossId!, line)
     target = `${boss.name} ${line}线`
     const existing = doc.r[key]
-    // 合理性：距离上次击杀不足（刷新周期 - 容忍值）时拒绝
+    // 合理性：距离上次击杀不足（刷新周期 - 容忍值）时
     if (existing && now - existing < boss.respawnMinutes * 60_000 - RESPAWN_TOLERANCE_MS) {
-      const v = await addViolation(kv, user.fp)
-      const autoBanned = await maybeAutoBan(kv, user, v)
-      const waitMin = Math.ceil((boss.respawnMinutes * 60_000 - (now - existing)) / 60_000)
-      await appendLog(kv, server, {
-        id: newId(), at: now, user, op, target, ok: false,
-        reason: `距离上次击杀不足刷新周期（约还需 ${waitMin} 分钟）`,
-      })
-      return fail('too_early', 409, { waitMin, autoBanned })
+      if (body.force === true) {
+        // 用户已在前端确认强制重置：放行，但记一次违规（累计过多照样自动封禁）
+        const v = await addViolation(kv, user.fp)
+        const autoBanned = await maybeAutoBan(kv, user, v)
+        detail = `强制重置（距上次击杀不足刷新周期，用户已确认）${autoBanned ? '；已触发自动封禁' : ''}`
+      } else {
+        const v = await addViolation(kv, user.fp)
+        const autoBanned = await maybeAutoBan(kv, user, v)
+        const waitMin = Math.ceil((boss.respawnMinutes * 60_000 - (now - existing)) / 60_000)
+        await appendLog(kv, server, {
+          id: newId(), at: now, user, op, target, ok: false,
+          reason: `距离上次击杀不足刷新周期（约还需 ${waitMin} 分钟）`,
+        })
+        return fail('too_early', 409, { waitMin, autoBanned })
+      }
     }
     prev[key] = existing ?? null
     doc.r[key] = now // 时间戳以服务器时钟为准，不信客户端

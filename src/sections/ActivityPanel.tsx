@@ -24,6 +24,7 @@ const OP_LABEL: Record<string, string> = {
   clearBoss: '清除整只 Boss',
   clearAll: '全部清空',
   undo: '撤销操作',
+  auto_restore: '系统自动还原',
 }
 
 export default function ActivityPanel({ serverId, active }: { serverId: string; active: boolean }) {
@@ -111,9 +112,9 @@ export default function ActivityPanel({ serverId, active }: { serverId: string; 
                 已被拒绝{l.reason ? `：${l.reason}` : ''}
               </span>
             )}
-            {isAdmin && l.user.id !== 'admin' && (
+            {isAdmin && l.user.id !== 'admin' && l.user.id !== 'system' && (
               <span className="ml-auto flex gap-1.5">
-                {l.ok && l.op !== 'undo' && (
+                {l.ok && l.op !== 'undo' && l.op !== 'auto_restore' && (
                   <button
                     type="button"
                     onClick={() => void undo(l.id)}

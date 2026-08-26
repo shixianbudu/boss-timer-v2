@@ -129,9 +129,6 @@ function BossTimer({ server }: { server: ServerConfig }) {
           </Link>
           <h1 className="text-2xl font-bold tracking-wide">
             <span className="mr-2">⚔️</span>Boss 刷新倒计时
-            <span className="ml-2 rounded-md bg-amber-500/20 px-2 py-0.5 align-middle text-sm font-bold text-amber-300">
-              3.0 安全版
-            </span>
           </h1>
           <span className="rounded-full border border-sky-500/50 bg-sky-500/10 px-3 py-1 text-sm font-semibold text-sky-300">
             {server.icon} {server.name}
@@ -296,10 +293,6 @@ function BossTimer({ server }: { server: ServerConfig }) {
             </TabsContent>
           ))}
         </Tabs>
-
-        <footer className="mt-6 text-center text-xs text-neutral-600">
-          点击卡片记录击杀时间并开始倒计时 · 再次点击重新计时 · 点 × 清除单条 · 3.0 安全版：操作需署名，服务端校验，乱来会被自动检测并封禁
-        </footer>
 
         <IdentityDialog
           open={identityOpen}

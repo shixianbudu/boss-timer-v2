@@ -7,7 +7,7 @@
  *  - 合理性校验：Boss 未到刷新周期时的重复击杀上报需用户确认（force）
  *  - 频率限制：同一身份单位时间内操作数有限
  *  - 违规检测：被拒绝的异常操作累计到一定次数自动封禁 24 小时
- *  - 自动还原：触发自动封禁时，还原该设备最近 1 小时内的异常操作
+ *  - 自动还原：封禁（含管理员手动封禁）时，还原该设备在本区服的全部操作记录；他人后来的操作不受影响
  *  - 操作日志：所有操作（含被拒绝的）公开可查，人人可见即威慑
  *  - 管理接口：封禁 / 解封 / 撤销某次操作（需要管理员密钥）
  */
@@ -27,8 +27,8 @@ const BOSSES = {
 
 /* ---------------- 常量 ---------------- */
 
-/** 每个身份 60 秒内允许的正常操作数 */
-const RATE_LIMIT_PER_MIN = 15
+/** 每个身份 60 秒内允许的操作数（超过即视为异常） */
+const RATE_LIMIT_PER_MIN = 3
 /** 每个 IP 60 秒内允许的操作数（防换身份刷接口） */
 const RATE_LIMIT_IP_PER_MIN = 60
 /** 提前刷新的容忍：刷新周期 - 此值 之后才允许再次记录击杀 */
@@ -145,22 +145,15 @@ async function maybeAutoBan(kv, user, violations) {
 }
 
 /**
- * 自动还原某设备最近的异常操作（触发自动封禁时调用）
- * 范围：该设备指纹最近 1 小时内、在本区服「成功执行且属于强制重置」的操作
- * 规则：按时间倒序还原为操作前的旧值；若之后已被他人重新记录则跳过
+ * 还原某设备在本区服的全部操作记录（封禁时调用）
+ * 范围：操作日志中该设备指纹的所有成功操作（击杀 / 清除 / 批量清除，不限时间）
+ * 规则：按时间倒序还原为操作前的旧值；若之后已被他人动过则跳过，
+ *       因此未被封禁的人后来点击的记录不受影响
  */
 async function autoRestoreAbnormal(kv, server, fp, name) {
   const now = Date.now()
   const logs = (await kv.get(`logs:${server}`, 'json')) ?? []
-  const targets = logs.filter(
-    (l) =>
-      l.ok &&
-      l.user.fp === fp &&
-      typeof l.detail === 'string' &&
-      l.detail.includes('强制重置') &&
-      l.at >= now - 3600_000 &&
-      l.prev,
-  )
+  const targets = logs.filter((l) => l.ok && l.user.fp === fp && l.prev)
   if (targets.length === 0) return 0
 
   const doc = await loadDoc(kv, server)
@@ -168,8 +161,13 @@ async function autoRestoreAbnormal(kv, server, fp, name) {
   // logs 新条目在前，本身即按时间倒序
   for (const entry of targets) {
     for (const [key, oldVal] of Object.entries(entry.prev)) {
-      // 该 key 当前的值仍是这次操作写入的（kill 写入的就是 entry.at），才还原
-      if (doc.r[key] !== entry.at) continue
+      if (entry.op === 'kill') {
+        // kill 写入的是击杀时间戳：当前值仍是该次操作写入的，才还原
+        if (doc.r[key] !== entry.at) continue
+      } else {
+        // clear / clearBoss / clearAll 写入的是墓碑：墓碑仍是该次操作写入的，才还原
+        if (key in doc.r || doc.d[key] !== entry.at) continue
+      }
       if (oldVal === null) {
         delete doc.r[key]
         doc.d[key] = now
@@ -186,7 +184,7 @@ async function autoRestoreAbnormal(kv, server, fp, name) {
     user: { id: 'system', name: '系统', fp: 'system' },
     op: 'auto_restore', ok: true,
     target: name,
-    detail: `检测到异常操作并自动封禁，已自动还原该设备最近 1 小时内的 ${restored} 次异常操作`,
+    detail: `已封禁该设备并还原其全部操作记录（共 ${restored} 条），其他玩家的记录不受影响`,
   })
   return restored
 }
@@ -405,7 +403,12 @@ async function handleBan(req, env) {
   if (body.fp) bans.fp[body.fp] = entry
   if (body.uid) bans.uid[body.uid] = entry
   await env.KV.put('bans', JSON.stringify(bans))
-  return json({ ok: true })
+  // 手动封禁同样还原该设备在本区服的全部操作记录
+  let restored = 0
+  if (body.fp && validServerId(body.server)) {
+    restored = await autoRestoreAbnormal(env.KV, body.server, body.fp, body.name ?? '')
+  }
+  return json({ ok: true, restored })
 }
 
 async function handleUnban(req, env) {

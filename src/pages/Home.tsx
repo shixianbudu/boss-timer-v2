@@ -8,6 +8,7 @@ import { useNow } from '@/hooks/useNow'
 import { onIdentityNeeded } from '@/lib/sync'
 import { getNickname } from '@/lib/identity'
 import { getAdminKey } from '@/lib/api'
+import { requestRules } from '@/sections/RulesDialog'
 import BossPanel from '@/sections/BossPanel'
 import OverviewPanel from '@/sections/OverviewPanel'
 import ActivityPanel from '@/sections/ActivityPanel'
@@ -167,6 +168,14 @@ function BossTimer({ server }: { server: ServerConfig }) {
             {syncStatus === 'online' ? '已连接·实时同步中' : syncStatus === 'connecting' ? '同步连接中…' : '离线·仅本地记录'}
           </span>
           <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => requestRules()}
+              className="rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-sm text-neutral-400 transition-colors hover:border-neutral-500 hover:text-white"
+              title="查看使用规则与封禁机制"
+            >
+              📜 规则
+            </button>
             <button
               type="button"
               onClick={() => setSoundOn((v) => !v)}

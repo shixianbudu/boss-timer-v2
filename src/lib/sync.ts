@@ -40,14 +40,14 @@ export function visibleRecords(doc: SyncDoc): Record<string, number> {
 }
 
 type Op =
-  | { op: 'kill'; bossId: string; line: number }
+  | { op: 'kill'; bossId: string; line: number; force?: boolean }
   | { op: 'clear'; bossId: string; line: number }
   | { op: 'clearBoss'; bossId: string }
   | { op: 'clearAll' }
 
 export interface SyncClient {
   getDoc: () => SyncDoc
-  kill: (bossId: string, line: number) => void
+  kill: (bossId: string, line: number, force?: boolean) => void
   clear: (bossId: string, line: number) => void
   clearBoss: (bossId: string) => void
   clearAll: () => void
@@ -142,7 +142,7 @@ export function createSyncClient(initialDoc: SyncDoc, serverId: string): SyncCli
 
   return {
     getDoc: () => doc,
-    kill: (bossId, line) => void send({ op: 'kill', bossId, line }),
+    kill: (bossId, line, force) => void send({ op: 'kill', bossId, line, force }),
     clear: (bossId, line) => void send({ op: 'clear', bossId, line }),
     clearBoss: (bossId) => void send({ op: 'clearBoss', bossId }),
     clearAll: () => void send({ op: 'clearAll' }),

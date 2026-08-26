@@ -7,6 +7,7 @@
  *  - 合理性校验：Boss 未到刷新周期时的重复击杀上报需用户确认（force）
  *  - 频率限制：同一身份单位时间内操作数有限
  *  - 违规检测：被拒绝的异常操作累计到一定次数自动封禁 24 小时
+ *  - 自动还原：触发自动封禁时，还原该设备最近 1 小时内的异常操作
  *  - 操作日志：所有操作（含被拒绝的）公开可查，人人可见即威慑
  *  - 管理接口：封禁 / 解封 / 撤销某次操作（需要管理员密钥）
  */
@@ -143,6 +144,53 @@ async function maybeAutoBan(kv, user, violations) {
   return true
 }
 
+/**
+ * 自动还原某设备最近的异常操作（触发自动封禁时调用）
+ * 范围：该设备指纹最近 1 小时内、在本区服「成功执行且属于强制重置」的操作
+ * 规则：按时间倒序还原为操作前的旧值；若之后已被他人重新记录则跳过
+ */
+async function autoRestoreAbnormal(kv, server, fp, name) {
+  const now = Date.now()
+  const logs = (await kv.get(`logs:${server}`, 'json')) ?? []
+  const targets = logs.filter(
+    (l) =>
+      l.ok &&
+      l.user.fp === fp &&
+      typeof l.detail === 'string' &&
+      l.detail.includes('强制重置') &&
+      l.at >= now - 3600_000 &&
+      l.prev,
+  )
+  if (targets.length === 0) return 0
+
+  const doc = await loadDoc(kv, server)
+  let restored = 0
+  // logs 新条目在前，本身即按时间倒序
+  for (const entry of targets) {
+    for (const [key, oldVal] of Object.entries(entry.prev)) {
+      // 该 key 当前的值仍是这次操作写入的（kill 写入的就是 entry.at），才还原
+      if (doc.r[key] !== entry.at) continue
+      if (oldVal === null) {
+        delete doc.r[key]
+        doc.d[key] = now
+      } else {
+        doc.r[key] = oldVal
+        delete doc.d[key]
+      }
+      restored++
+    }
+  }
+  if (restored > 0) await kv.put(`state:${server}`, JSON.stringify(doc))
+  await appendLog(kv, server, {
+    id: newId(), at: now,
+    user: { id: 'system', name: '系统', fp: 'system' },
+    op: 'auto_restore', ok: true,
+    target: name,
+    detail: `检测到异常操作并自动封禁，已自动还原该设备最近 1 小时内的 ${restored} 次异常操作`,
+  })
+  return restored
+}
+
 /* ---------------- 操作处理 ---------------- */
 
 async function handleOp(req, env) {
@@ -180,11 +228,12 @@ async function handleOp(req, env) {
   const ip = req.headers.get('CF-Connecting-IP') ?? 'unknown'
   if (await rateLimited(kv, `rl:u:${user.fp}`, RATE_LIMIT_PER_MIN)) {
     const v = await addViolation(kv, user.fp)
-    await maybeAutoBan(kv, user, v)
+    const autoBanned = await maybeAutoBan(kv, user, v)
+    if (autoBanned) await autoRestoreAbnormal(kv, server, user.fp, user.name)
     await appendLog(kv, server, {
       id: newId(), at: Date.now(), user, op, ok: false, reason: '操作过于频繁',
     })
-    return fail('rate_limited', 429)
+    return fail('rate_limited', 429, { violations: v, limit: AUTO_BAN_VIOLATIONS })
   }
   if (await rateLimited(kv, `rl:ip:${ip}`, RATE_LIMIT_IP_PER_MIN)) {
     return fail('rate_limited', 429)
@@ -220,7 +269,20 @@ async function handleOp(req, env) {
         // 用户已在前端确认强制重置：放行，但记一次违规（累计过多照样自动封禁）
         const v = await addViolation(kv, user.fp)
         const autoBanned = await maybeAutoBan(kv, user, v)
-        detail = `强制重置（距上次击杀不足刷新周期，用户已确认）${autoBanned ? '；已触发自动封禁' : ''}`
+        detail = `强制重置（距上次击杀不足刷新周期，用户已确认）${autoBanned ? '；已触发自动封禁并自动还原异常操作' : ''}`
+        if (autoBanned) {
+          // 先落库本次操作，再还原历史异常操作（本次是用户确认过的，不还原）
+          prev[key] = existing ?? null
+          doc.r[key] = now
+          delete doc.d[key]
+          await kv.put(`state:${server}`, JSON.stringify(doc))
+          const entry = {
+            id: newId(), at: now, user, op, target, detail, ok: true, prev,
+          }
+          await appendLog(kv, server, entry)
+          await autoRestoreAbnormal(kv, server, user.fp, user.name)
+          return json({ ok: true, at: now, logId: entry.id, autoBanned: true, violations: v, limit: AUTO_BAN_VIOLATIONS })
+        }
       } else {
         const v = await addViolation(kv, user.fp)
         const autoBanned = await maybeAutoBan(kv, user, v)
@@ -229,7 +291,10 @@ async function handleOp(req, env) {
           id: newId(), at: now, user, op, target, ok: false,
           reason: `距离上次击杀不足刷新周期（约还需 ${waitMin} 分钟）`,
         })
-        return fail('too_early', 409, { waitMin, autoBanned })
+        if (autoBanned) await autoRestoreAbnormal(kv, server, user.fp, user.name)
+        return fail('too_early', 409, {
+          waitMin, autoBanned, violations: v, limit: AUTO_BAN_VIOLATIONS,
+        })
       }
     }
     prev[key] = existing ?? null

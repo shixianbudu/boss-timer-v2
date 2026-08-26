@@ -6,8 +6,8 @@
  *  3. 下方 DEFAULT_API_BASE —— 部署 Worker 后把它改成你的 Worker 地址
  */
 
-// 部署 Worker 后的实际地址
-const DEFAULT_API_BASE = 'https://boss-timer-api.douyinfenda.workers.dev'
+// 自定义域名（workers.dev 在国内被 DNS 污染，改走自有域名）
+const DEFAULT_API_BASE = 'https://douyinfenda.top'
 
 export const API_BASE: string =
   (typeof localStorage !== 'undefined' && localStorage.getItem('bt-api-base')) ||

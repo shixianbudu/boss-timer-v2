@@ -5,7 +5,7 @@
  * 职责：
  *  - 唯一权威数据源：击杀记录只由本 Worker 写入，时间戳以服务器时钟为准
  *  - 合理性校验：Boss 未到刷新周期时的重复击杀上报需用户确认（force）
- *  - 频率限制：同一身份单位时间内操作数有限
+ *  - 频率限制：同一身份单位时间内操作数有限（管理员不受限）
  *  - 违规检测：被拒绝的异常操作累计到一定次数自动封禁 24 小时
  *  - 自动还原：封禁（含管理员手动封禁）时，还原该设备在本区服的全部操作记录；他人后来的操作不受影响
  *  - 操作日志：所有操作（含被拒绝的）公开可查，人人可见即威慑
@@ -211,9 +211,12 @@ async function handleOp(req, env) {
 
   const kv = env.KV
 
-  // 1) 封禁检查
+  // 0) 管理员：密钥正确即信任，跳过封禁检查、限频与违规计数
+  const admin = isAdmin(req, env)
+
+  // 1) 封禁检查（管理员不受限）
   const bans = await loadBans(kv)
-  const banned = checkBan(bans, user)
+  const banned = admin ? null : checkBan(bans, user)
   if (banned) {
     await appendLog(kv, server, {
       id: newId(), at: Date.now(), user, op, ok: false,
@@ -222,9 +225,9 @@ async function handleOp(req, env) {
     return fail('banned', 403, { reason: banned.reason, until: banned.until ?? null })
   }
 
-  // 2) 限频（身份 + IP 双维度）
+  // 2) 限频（身份 + IP 双维度，管理员不受限）
   const ip = req.headers.get('CF-Connecting-IP') ?? 'unknown'
-  if (await rateLimited(kv, `rl:u:${user.fp}`, RATE_LIMIT_PER_MIN)) {
+  if (!admin && (await rateLimited(kv, `rl:u:${user.fp}`, RATE_LIMIT_PER_MIN))) {
     const v = await addViolation(kv, user.fp)
     const autoBanned = await maybeAutoBan(kv, user, v)
     if (autoBanned) await autoRestoreAbnormal(kv, server, user.fp, user.name)
@@ -233,12 +236,12 @@ async function handleOp(req, env) {
     })
     return fail('rate_limited', 429, { violations: v, limit: AUTO_BAN_VIOLATIONS })
   }
-  if (await rateLimited(kv, `rl:ip:${ip}`, RATE_LIMIT_IP_PER_MIN)) {
+  if (!admin && (await rateLimited(kv, `rl:ip:${ip}`, RATE_LIMIT_IP_PER_MIN))) {
     return fail('rate_limited', 429)
   }
 
   // 3) clearAll 仅限管理员（杀伤力太大）
-  if (op === 'clearAll' && !isAdmin(req, env)) {
+  if (op === 'clearAll' && !admin) {
     await appendLog(kv, server, {
       id: newId(), at: Date.now(), user, op, ok: false, reason: '全部清空仅限管理员',
     })
@@ -265,8 +268,8 @@ async function handleOp(req, env) {
     if (existing && now - existing < boss.respawnMinutes * 60_000 - RESPAWN_TOLERANCE_MS) {
       if (body.force === true) {
         // 用户已在前端确认强制重置：放行，但记一次违规（累计过多照样自动封禁）
-        const v = await addViolation(kv, user.fp)
-        const autoBanned = await maybeAutoBan(kv, user, v)
+        const v = admin ? undefined : await addViolation(kv, user.fp)
+        const autoBanned = v !== undefined && (await maybeAutoBan(kv, user, v))
         detail = `强制重置（距上次击杀不足刷新周期，用户已确认）${autoBanned ? '；已触发自动封禁并自动还原异常操作' : ''}`
         if (autoBanned) {
           // 先落库本次操作，再还原历史异常操作（本次是用户确认过的，不还原）
@@ -282,8 +285,8 @@ async function handleOp(req, env) {
           return json({ ok: true, at: now, logId: entry.id, autoBanned: true, violations: v, limit: AUTO_BAN_VIOLATIONS })
         }
       } else {
-        const v = await addViolation(kv, user.fp)
-        const autoBanned = await maybeAutoBan(kv, user, v)
+        const v = admin ? undefined : await addViolation(kv, user.fp)
+        const autoBanned = v !== undefined && (await maybeAutoBan(kv, user, v))
         const waitMin = Math.ceil((boss.respawnMinutes * 60_000 - (now - existing)) / 60_000)
         await appendLog(kv, server, {
           id: newId(), at: now, user, op, target, ok: false,

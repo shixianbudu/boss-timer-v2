@@ -6,7 +6,7 @@ import {
   type SyncDoc,
   type SyncStatus,
 } from '@/lib/sync'
-import { BOSSES, formatCountdown, respawnMs } from '@/lib/bosses'
+import { BOSSES, formatCountdown, nextSpawnIn, respawnMs } from '@/lib/bosses'
 
 const storageKey = (serverId: string) => `boss-timer-doc-v2:${serverId}`
 
@@ -63,7 +63,7 @@ export function useKillRecords(serverId: string) {
       const killAt = records[recordKey(bossId, line)]
       // 计时尚未结束（距离刷新超过容忍值）时，先弹确认框
       if (boss && killAt) {
-        const remaining = killAt + respawnMs(boss) - Date.now()
+        const remaining = nextSpawnIn(respawnMs(boss), boss.autoLoopExtraMs, killAt, Date.now())
         if (remaining > EARLY_TOLERANCE_MS) {
           const ok = window.confirm(
             `⚠️ ${boss.name} · ${line}线 的计时还未结束\n` +

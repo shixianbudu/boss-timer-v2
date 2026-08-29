@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { BOSSES, respawnMs, type BossConfig } from '@/lib/bosses'
+import { BOSSES, nextSpawnIn, respawnMs, type BossConfig } from '@/lib/bosses'
 import type { KillRecords } from '@/hooks/useKillRecords'
 import LineCard from './LineCard'
 
@@ -28,7 +28,7 @@ export default function OverviewPanel({ records, now, onKill, onClear }: Overvie
       const boss = bossMap.get(key.slice(0, sep))
       if (!boss) continue
       const line = Number(key.slice(sep + 1))
-      arr.push({ boss, line, killAt, remaining: killAt + respawnMs(boss) - now })
+      arr.push({ boss, line, killAt, remaining: nextSpawnIn(respawnMs(boss), boss.autoLoopExtraMs, killAt, now) })
     }
     arr.sort((a, b) => a.remaining - b.remaining)
     return arr
@@ -61,6 +61,7 @@ export default function OverviewPanel({ records, now, onKill, onClear }: Overvie
               title={`${boss.icon}${boss.name}·${line}线`}
               killAt={killAt}
               respawnMs={respawnMs(boss)}
+              cycleExtraMs={boss.autoLoopExtraMs}
               now={now}
               onKill={() => onKill(boss.id, line)}
               onClear={() => onClear(boss.id, line)}

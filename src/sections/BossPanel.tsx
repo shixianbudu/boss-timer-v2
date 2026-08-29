@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { respawnMs, type BossConfig } from '@/lib/bosses'
+import { nextSpawnIn, respawnMs, type BossConfig } from '@/lib/bosses'
 import { recordKey, type KillRecords } from '@/hooks/useKillRecords'
 import LineCard from './LineCard'
 
@@ -23,7 +23,7 @@ export default function BossPanel({ boss, records, now, onKill, onClear, onClear
     const arr = Array.from({ length: boss.lines }, (_, i) => {
       const line = i + 1
       const killAt = records[recordKey(boss.id, line)]
-      const remaining = killAt !== undefined ? killAt + respawn - now : Number.POSITIVE_INFINITY
+      const remaining = killAt !== undefined ? nextSpawnIn(respawn, boss.autoLoopExtraMs, killAt, now) : Number.POSITIVE_INFINITY
       return { line, killAt, remaining }
     })
     const filtered = onlyRecorded ? arr.filter((x) => x.killAt !== undefined) : arr
@@ -32,7 +32,7 @@ export default function BossPanel({ boss, records, now, onKill, onClear, onClear
       return [...filtered].sort((a, b) => a.remaining - b.remaining)
     }
     return filtered
-  }, [boss.id, boss.lines, records, now, respawn, sortMode, onlyRecorded])
+  }, [boss.id, boss.lines, boss.autoLoopExtraMs, records, now, respawn, sortMode, onlyRecorded])
 
   const activeCount = useMemo(
     () => Object.keys(records).filter((k) => k.startsWith(`${boss.id}:`)).length,
@@ -44,6 +44,9 @@ export default function BossPanel({ boss, records, now, onKill, onClear, onClear
       <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="text-sm text-neutral-400">
           刷新周期 <span className="font-semibold text-neutral-200">{boss.respawnMinutes} 分钟</span>
+          {boss.autoLoopExtraMs != null && (
+            <span className="ml-1 text-amber-300/80">（到点自动循环）</span>
+          )}
           <span className="mx-2 text-neutral-600">|</span>
           已记录 <span className="font-semibold text-emerald-400">{activeCount}</span> / {boss.lines} 线
         </div>
@@ -92,6 +95,7 @@ export default function BossPanel({ boss, records, now, onKill, onClear, onClear
               line={line}
               killAt={killAt}
               respawnMs={respawn}
+              cycleExtraMs={boss.autoLoopExtraMs}
               now={now}
               onKill={() => onKill(boss.id, line)}
               onClear={() => onClear(boss.id, line)}

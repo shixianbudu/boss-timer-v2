@@ -1,10 +1,12 @@
 import { memo } from 'react'
-import { formatClock, formatCountdown } from '@/lib/bosses'
+import { formatClock, formatCountdown, nextSpawnIn } from '@/lib/bosses'
 
 interface LineCardProps {
   line: number
   killAt?: number
   respawnMs: number
+  /** 自动循环缓冲（仅多尔）：到点后按「刷新周期+缓冲」循环重新倒数 */
+  cycleExtraMs?: number
   now: number
   onKill: () => void
   onClear: () => void
@@ -12,11 +14,13 @@ interface LineCardProps {
   title?: string
 }
 
-function LineCardInner({ line, killAt, respawnMs, now, onKill, onClear, title }: LineCardProps) {
+function LineCardInner({ line, killAt, respawnMs, cycleExtraMs, now, onKill, onClear, title }: LineCardProps) {
   const label = title ?? `${line} 线`
   const recorded = killAt !== undefined
-  const remaining = recorded ? killAt + respawnMs - now : 0
+  const remaining = recorded ? nextSpawnIn(respawnMs, cycleExtraMs, killAt, now) : 0
   const spawned = recorded && remaining <= 0
+  // 已过去至少一个完整周期：当前倒数为自动循环（期间没人点过击杀）
+  const looped = recorded && cycleExtraMs != null && now - killAt >= respawnMs + cycleExtraMs
   // 剩余比例 1(刚击杀) -> 0(即将刷新)，色相 120(绿) -> 0(红)
   const fraction = recorded ? Math.min(1, Math.max(0, remaining / respawnMs)) : 1
   const hue = Math.round(120 * fraction)
@@ -78,9 +82,12 @@ function LineCardInner({ line, killAt, respawnMs, now, onKill, onClear, title }:
         {spawned ? (
           <div className="font-semibold text-red-200">已刷新！</div>
         ) : (
-          <div>刷新 {formatClock(killAt + respawnMs)}</div>
+          <div>刷新 {formatClock(now + remaining)}</div>
         )}
-        <div>击杀 {formatClock(killAt)}</div>
+        <div>
+          击杀 {formatClock(killAt)}
+          {looped && <span className="ml-1 text-amber-300/80">·自动循环</span>}
+        </div>
       </div>
       {/* 底部进度条：随剩余时间缩短 */}
       {!spawned && (

@@ -26,7 +26,7 @@ const BOSSES: Record<string, { name: string; respawnMinutes: number; lines: numb
   'mushroom-king': { name: '蘑菇王', respawnMinutes: 30, lines: 60 },
   'zombie-mushroom-king': { name: '僵尸蘑菇王', respawnMinutes: 30, lines: 60 },
   faust: { name: '浮士德', respawnMinutes: 30, lines: 60 },
-  doll: { name: '多尔', respawnMinutes: 30, lines: 60 },
+  doll: { name: '多尔', respawnMinutes: 45, lines: 60 },
   balrog: { name: '蝙蝠怪', respawnMinutes: 180, lines: 60 },
 }
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { BOSSES, formatCountdown, respawnMs } from '@/lib/bosses'
+import { BOSSES, formatCountdown, nextSpawnIn, respawnMs } from '@/lib/bosses'
 import { getServer, type ServerConfig } from '@/lib/servers'
 import { recordKey, useKillRecords } from '@/hooks/useKillRecords'
 import { useNow } from '@/hooks/useNow'
@@ -81,7 +81,7 @@ function BossTimer({ server }: { server: ServerConfig }) {
       const boss = bossMap.get(bossId)
       if (!boss) continue
       activeByBoss.set(bossId, (activeByBoss.get(bossId) ?? 0) + 1)
-      const remaining = killAt + respawnMs(boss) - now
+      const remaining = nextSpawnIn(respawnMs(boss), boss.autoLoopExtraMs, killAt, now)
       if (remaining > 0) items.push({ bossId, bossName: boss.name, icon: boss.icon, line, remaining })
     }
     items.sort((a, b) => a.remaining - b.remaining)
@@ -100,7 +100,7 @@ function BossTimer({ server }: { server: ServerConfig }) {
       const sep = key.indexOf(':')
       const boss = bossMap.get(key.slice(0, sep))
       if (!boss) continue
-      const remaining = killAt + respawnMs(boss) - now
+      const remaining = nextSpawnIn(respawnMs(boss), boss.autoLoopExtraMs, killAt, now)
       if (remaining <= 0 && !alertedRef.current.has(key)) {
         alertedRef.current.add(key)
         playBeep()
